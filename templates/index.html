@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Comments Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YouTube コメント分析ツール</h1>
+            <p class="subtitle">YouTube動画のURLを入力してコメントを分析します</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="youtube-url">YouTube URL:</label>
+                    <input
+                        type="text"
+                        id="youtube-url"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        autocomplete="off"
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="max-comments">取得コメント数:</label>
+                    <select id="max-comments">
+                        <option value="50">50件</option>
+                        <option value="100" selected>100件</option>
+                        <option value="200">200件</option>
+                        <option value="500">500件</option>
+                    </select>
+                </div>
+                <button id="analyze-btn" onclick="analyzeComments()">分析開始</button>
+            </div>
+
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>分析中...</p>
+            </div>
+
+            <div id="error-message" class="error-message" style="display: none;"></div>
+
+            <div id="results" style="display: none;">
+                <!-- 動画情報 -->
+                <section class="video-info">
+                    <h2>動画情報</h2>
+                    <div id="video-details"></div>
+                </section>
+
+                <!-- 統計情報 -->
+                <section class="statistics">
+                    <h2>統計情報</h2>
+                    <div id="stats-grid" class="stats-grid"></div>
+                </section>
+
+                <!-- 頻出ワード -->
+                <section class="word-frequency">
+                    <h2>頻出ワード Top 20</h2>
+                    <div id="word-freq-chart"></div>
+                </section>
+
+                <!-- 人気のコメント -->
+                <section class="top-comments">
+                    <h2>いいね数が多いコメント Top 10</h2>
+                    <div id="top-comments-list"></div>
+                </section>
+
+                <!-- 最新のコメント -->
+                <section class="recent-comments">
+                    <h2>最新のコメント</h2>
+                    <div id="recent-comments-list"></div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>YouTube Comments Analyzer &copy; 2024</p>
+        </footer>
+    </div>
+
+    <script>
+        async function analyzeComments() {
+            const url = document.getElementById('youtube-url').value.trim();
+            const maxComments = document.getElementById('max-comments').value;
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorMessage = document.getElementById('error-message');
+            const analyzeBtn = document.getElementById('analyze-btn');
+
+            // 入力チェック
+            if (!url) {
+                showError('YouTube URLを入力してください');
+                return;
+            }
+
+            // UI更新
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            errorMessage.style.display = 'none';
+            analyzeBtn.disabled = true;
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        max_comments: maxComments
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'エラーが発生しました');
+                }
+
+                displayResults(data);
+                results.style.display = 'block';
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function displayResults(data) {
+            // 動画情報
+            const videoDetails = document.getElementById('video-details');
+            videoDetails.innerHTML = `
+                <div class="video-detail-item">
+                    <strong>タイトル:</strong> ${escapeHtml(data.video_info.title)}
+                </div>
+                <div class="video-detail-item">
+                    <strong>チャンネル:</strong> ${escapeHtml(data.video_info.channel)}
+                </div>
+                <div class="video-detail-item">
+                    <strong>公開日:</strong> ${formatDate(data.video_info.published_at)}
+                </div>
+                <div class="video-detail-item">
+                    <strong>再生回数:</strong> ${data.video_info.view_count.toLocaleString()}回
+                </div>
+                <div class="video-detail-item">
+                    <strong>いいね数:</strong> ${data.video_info.like_count.toLocaleString()}
+                </div>
+                <div class="video-detail-item">
+                    <strong>コメント数:</strong> ${data.video_info.comment_count.toLocaleString()}
+                </div>
+            `;
+
+            // 統計情報
+            const statsGrid = document.getElementById('stats-grid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${data.statistics.total_comments}</div>
+                    <div class="stat-label">取得コメント数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.statistics.total_likes.toLocaleString()}</div>
+                    <div class="stat-label">合計いいね数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.statistics.average_likes}</div>
+                    <div class="stat-label">平均いいね数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.statistics.max_likes}</div>
+                    <div class="stat-label">最大いいね数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${Math.round(data.statistics.average_comment_length)}</div>
+                    <div class="stat-label">平均コメント文字数</div>
+                </div>
+            `;
+
+            // 頻出ワード
+            const wordFreqChart = document.getElementById('word-freq-chart');
+            const maxFreq = data.word_frequency[0] ? data.word_frequency[0][1] : 1;
+            wordFreqChart.innerHTML = data.word_frequency.map(([word, count]) => `
+                <div class="word-item">
+                    <div class="word-label">${escapeHtml(word)}</div>
+                    <div class="word-bar-container">
+                        <div class="word-bar" style="width: ${(count / maxFreq) * 100}%"></div>
+                        <span class="word-count">${count}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            // 人気のコメント
+            const topCommentsList = document.getElementById('top-comments-list');
+            topCommentsList.innerHTML = data.top_comments.map((comment, index) => `
+                <div class="comment-card">
+                    <div class="comment-header">
+                        <span class="comment-rank">#${index + 1}</span>
+                        <span class="comment-author">${escapeHtml(comment.author)}</span>
+                        <span class="comment-likes">👍 ${comment.like_count}</span>
+                    </div>
+                    <div class="comment-text">${escapeHtml(comment.text)}</div>
+                    <div class="comment-date">${formatDate(comment.published_at)}</div>
+                </div>
+            `).join('');
+
+            // 最新のコメント
+            const recentCommentsList = document.getElementById('recent-comments-list');
+            recentCommentsList.innerHTML = data.recent_comments.map((comment) => `
+                <div class="comment-card">
+                    <div class="comment-header">
+                        <span class="comment-author">${escapeHtml(comment.author)}</span>
+                        <span class="comment-likes">👍 ${comment.like_count}</span>
+                    </div>
+                    <div class="comment-text">${escapeHtml(comment.text)}</div>
+                    <div class="comment-date">${formatDate(comment.published_at)}</div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('ja-JP');
+        }
+
+        // Enterキーで分析開始
+        document.getElementById('youtube-url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzeComments();
+            }
+        });
+    </script>
+</body>
+</html>
