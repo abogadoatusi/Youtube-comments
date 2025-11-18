@@ -15,3 +15,5 @@ env/
 .idea/
 *.log
 static/wordclouds/
+*.db
+instance/

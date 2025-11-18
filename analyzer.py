@@ -126,3 +126,101 @@ class CommentAnalyzer:
             reverse=True
         )
         return sorted_comments[:n]
+
+    def get_yearly_statistics(self):
+        """
+        年別のコメント統計を取得
+
+        Returns:
+            年別統計の辞書 {year: {count, total_likes, avg_likes}}
+        """
+        if not self.comments:
+            return {}
+
+        yearly_data = {}
+
+        for comment in self.comments:
+            # ISO形式の日付文字列から年を抽出
+            try:
+                date_str = comment['published_at']
+                # 'Z'を'+00:00'に置換してパース
+                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                year = date_obj.year
+
+                if year not in yearly_data:
+                    yearly_data[year] = {
+                        'count': 0,
+                        'total_likes': 0,
+                        'comments': []
+                    }
+
+                yearly_data[year]['count'] += 1
+                yearly_data[year]['total_likes'] += comment['like_count']
+                yearly_data[year]['comments'].append(comment)
+
+            except (ValueError, KeyError) as e:
+                # 日付のパースに失敗した場合はスキップ
+                continue
+
+        # 平均いいね数を計算
+        result = {}
+        for year, data in yearly_data.items():
+            result[year] = {
+                'year': year,
+                'count': data['count'],
+                'total_likes': data['total_likes'],
+                'average_likes': round(data['total_likes'] / data['count'], 2) if data['count'] > 0 else 0
+            }
+
+        # 年でソート
+        return dict(sorted(result.items()))
+
+    def get_monthly_statistics(self, year=None):
+        """
+        月別のコメント統計を取得
+
+        Args:
+            year: 特定の年のデータのみ取得（Noneの場合は全期間）
+
+        Returns:
+            月別統計のリスト
+        """
+        if not self.comments:
+            return []
+
+        monthly_data = {}
+
+        for comment in self.comments:
+            try:
+                date_str = comment['published_at']
+                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
+                # 特定の年が指定されている場合はフィルタリング
+                if year and date_obj.year != year:
+                    continue
+
+                year_month = f"{date_obj.year}-{date_obj.month:02d}"
+
+                if year_month not in monthly_data:
+                    monthly_data[year_month] = {
+                        'count': 0,
+                        'total_likes': 0
+                    }
+
+                monthly_data[year_month]['count'] += 1
+                monthly_data[year_month]['total_likes'] += comment['like_count']
+
+            except (ValueError, KeyError):
+                continue
+
+        # リスト形式に変換
+        result = []
+        for month, data in sorted(monthly_data.items()):
+            result.append({
+                'month': month,
+                'count': data['count'],
+                'total_likes': data['total_likes'],
+                'average_likes': round(data['total_likes'] / data['count'], 2) if data['count'] > 0 else 0
+            })
+
+        return result

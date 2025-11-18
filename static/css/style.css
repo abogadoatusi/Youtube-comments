@@ -40,6 +40,25 @@ header h1 {
     opacity: 0.9;
 }
 
+.header-links {
+    margin-top: 20px;
+}
+
+.btn-link {
+    color: white;
+    text-decoration: none;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    display: inline-block;
+    transition: background 0.3s;
+    margin: 0 5px;
+}
+
+.btn-link:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 /* メインコンテンツ */
 main {
     padding: 40px;
@@ -298,6 +317,89 @@ footer {
     border-top: 1px solid #ddd;
 }
 
+/* 共有セクション */
+.share-section {
+    background: #e8f0fe;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.share-section p {
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #555;
+}
+
+.share-url {
+    display: flex;
+    gap: 10px;
+}
+
+.share-url input {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #667eea;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.share-url button {
+    padding: 10px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.3s;
+    width: auto;
+}
+
+.share-url button:hover {
+    background: #5568d3;
+}
+
+/* 年別統計 */
+.yearly-stats {
+    margin-bottom: 40px;
+}
+
+.chart-container {
+    position: relative;
+    height: 400px;
+    margin-bottom: 30px;
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.yearly-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.yearly-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.yearly-table th,
+.yearly-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.yearly-table th {
+    font-weight: 600;
+}
+
+.yearly-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
 /* レスポンシブ */
 @media (max-width: 768px) {
     header h1 {
@@ -318,5 +420,17 @@ footer {
 
     .input-section {
         padding: 20px;
+    }
+
+    .chart-container {
+        height: 300px;
+    }
+
+    .share-url {
+        flex-direction: column;
+    }
+
+    .share-url button {
+        width: 100%;
     }
 }

@@ -3,48 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Comments Analyzer</title>
+    <title>分析結果 - YouTube Comments Analyzer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>YouTube コメント分析ツール</h1>
-            <p class="subtitle">YouTube動画のURLを入力してコメントを分析します</p>
+            <h1>YouTube コメント分析結果</h1>
             <div class="header-links">
+                <a href="/" class="btn-link">← 新規分析</a>
                 <a href="/history" class="btn-link">分析履歴</a>
             </div>
         </header>
 
         <main>
-            <div class="input-section">
-                <div class="input-group">
-                    <label for="youtube-url">YouTube URL:</label>
-                    <input
-                        type="text"
-                        id="youtube-url"
-                        placeholder="https://www.youtube.com/watch?v=..."
-                        autocomplete="off"
-                    >
-                </div>
-                <div class="input-group">
-                    <label for="max-comments">取得コメント数:</label>
-                    <select id="max-comments">
-                        <option value="50">50件</option>
-                        <option value="100" selected>100件</option>
-                        <option value="200">200件</option>
-                        <option value="500">500件</option>
-                    </select>
-                </div>
-                <button id="analyze-btn" onclick="analyzeComments()">分析開始</button>
-            </div>
-
-            <div id="loading" class="loading" style="display: none;">
+            <div id="loading" class="loading">
                 <div class="spinner"></div>
-                <p>分析中...</p>
+                <p>読み込み中...</p>
             </div>
 
-            <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="share-section" class="share-section" style="display: none;">
+                <p>このページのURL:</p>
+                <div class="share-url">
+                    <input type="text" id="share-url-input" readonly>
+                    <button onclick="copyUrl()">コピー</button>
+                </div>
+            </div>
 
             <div id="results" style="display: none;">
                 <!-- 動画情報 -->
@@ -57,6 +42,15 @@
                 <section class="statistics">
                     <h2>統計情報</h2>
                     <div id="stats-grid" class="stats-grid"></div>
+                </section>
+
+                <!-- 年別統計 -->
+                <section class="yearly-stats">
+                    <h2>年別コメント推移</h2>
+                    <div class="chart-container">
+                        <canvas id="yearly-chart"></canvas>
+                    </div>
+                    <div id="yearly-table"></div>
                 </section>
 
                 <!-- 頻出ワード -->
@@ -85,74 +79,33 @@
     </div>
 
     <script>
-        async function analyzeComments() {
-            const url = document.getElementById('youtube-url').value.trim();
-            const maxComments = document.getElementById('max-comments').value;
+        const analysisId = {{ analysis_id }};
+
+        async function loadAnalysis() {
             const loading = document.getElementById('loading');
             const results = document.getElementById('results');
-            const errorMessage = document.getElementById('error-message');
-            const analyzeBtn = document.getElementById('analyze-btn');
-
-            // 入力チェック
-            if (!url) {
-                showError('YouTube URLを入力してください');
-                return;
-            }
-
-            // UI更新
-            loading.style.display = 'block';
-            results.style.display = 'none';
-            errorMessage.style.display = 'none';
-            analyzeBtn.disabled = true;
+            const shareSection = document.getElementById('share-section');
 
             try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        url: url,
-                        max_comments: maxComments
-                    })
-                });
+                const response = await fetch(`/api/analysis/${analysisId}`);
+                if (!response.ok) {
+                    throw new Error('分析結果が見つかりません');
+                }
 
                 const data = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(data.error || 'エラーが発生しました');
-                }
+                // 共有URL設定
+                const shareUrlInput = document.getElementById('share-url-input');
+                shareUrlInput.value = window.location.href;
+                shareSection.style.display = 'block';
 
-                // 既存の分析がある場合
-                if (data.existing) {
-                    if (confirm(data.message)) {
-                        window.location.href = `/analysis/${data.analysis_id}`;
-                    } else {
-                        loading.style.display = 'none';
-                        analyzeBtn.disabled = false;
-                    }
-                    return;
-                }
-
-                // 新規分析完了後、分析結果ページにリダイレクト
-                if (data.analysis_id) {
-                    window.location.href = `/analysis/${data.analysis_id}`;
-                }
+                displayResults(data);
+                results.style.display = 'block';
+                loading.style.display = 'none';
 
             } catch (error) {
-                showError(error.message);
-                loading.style.display = 'none';
-                analyzeBtn.disabled = false;
+                loading.innerHTML = `<p style="color: #c33;">エラー: ${error.message}</p>`;
             }
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
         }
 
         function displayResults(data) {
@@ -204,6 +157,11 @@
                 </div>
             `;
 
+            // 年別統計の表示
+            if (data.yearly_stats && Object.keys(data.yearly_stats).length > 0) {
+                displayYearlyStats(data.yearly_stats);
+            }
+
             // 頻出ワード
             const wordFreqChart = document.getElementById('word-freq-chart');
             const maxFreq = data.word_frequency[0] ? data.word_frequency[0][1] : 1;
@@ -245,6 +203,106 @@
             `).join('');
         }
 
+        function displayYearlyStats(yearlyStats) {
+            const years = Object.keys(yearlyStats).sort();
+            const counts = years.map(year => yearlyStats[year].count);
+            const avgLikes = years.map(year => yearlyStats[year].average_likes);
+
+            // グラフの描画
+            const ctx = document.getElementById('yearly-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            label: 'コメント数',
+                            data: counts,
+                            backgroundColor: 'rgba(102, 126, 234, 0.5)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '平均いいね数',
+                            data: avgLikes,
+                            backgroundColor: 'rgba(118, 75, 162, 0.5)',
+                            borderColor: 'rgba(118, 75, 162, 1)',
+                            borderWidth: 2,
+                            type: 'line',
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'コメント数'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '平均いいね数'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+
+            // テーブル表示
+            const yearlyTable = document.getElementById('yearly-table');
+            yearlyTable.innerHTML = `
+                <table class="yearly-table">
+                    <thead>
+                        <tr>
+                            <th>年</th>
+                            <th>コメント数</th>
+                            <th>合計いいね数</th>
+                            <th>平均いいね数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${years.map(year => {
+                            const stats = yearlyStats[year];
+                            return `
+                                <tr>
+                                    <td>${year}</td>
+                                    <td>${stats.count}</td>
+                                    <td>${stats.total_likes.toLocaleString()}</td>
+                                    <td>${stats.average_likes}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function copyUrl() {
+            const input = document.getElementById('share-url-input');
+            input.select();
+            document.execCommand('copy');
+            alert('URLをコピーしました');
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -256,12 +314,8 @@
             return date.toLocaleString('ja-JP');
         }
 
-        // Enterキーで分析開始
-        document.getElementById('youtube-url').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                analyzeComments();
-            }
-        });
+        // ページ読み込み時に分析結果を取得
+        loadAnalysis();
     </script>
 </body>
 </html>
